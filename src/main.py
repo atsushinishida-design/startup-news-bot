@@ -1,6 +1,6 @@
 import requests
 from bs4 import BeautifulSoup
-from readability import Document
+from readability import Document  # 必ずインポート
 import os
 import json
 import time
@@ -22,8 +22,9 @@ def fetch_article_text(url: str) -> str:
     r.raise_for_status()
     html = r.text
 
-    doc = Document(html)  # Documentのインスタンスを確実に作成
-    content_html = doc.summary()
+    # Documentクラスを使って記事本文を抽出
+    doc = Document(html)  # Documentのインスタンスを作成
+    content_html = doc.summary()  # summaryメソッドで本文を抽出
 
     soup = BeautifulSoup(content_html, "lxml")
     text = soup.get_text(separator="\n")
