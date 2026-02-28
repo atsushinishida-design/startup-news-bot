@@ -26,8 +26,8 @@ jobs:
           pip install "lxml-html-clean==0.4.1"
           # ★ 入ったかを確認（ここで落ちたら原因が確定）
           python -c "import lxml.html.clean; print('OK: lxml.html.clean')"
-          python -m playwright install --with-deps chromium
-      
+          python -m playwright install --with-deps chromium  # Playwright用ブラウザのインストール
+
       - name: Verify lxml clean
         run: |
           pip show lxml-html-clean
@@ -38,7 +38,7 @@ jobs:
           pip show lxml
           pip show lxml-html-clean || pip show lxml_html_clean || true
           python -c "import lxml.html.clean; print('lxml.html.clean import OK')"
-          
+
       - name: Run bot
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -47,7 +47,7 @@ jobs:
           # EXAMPLE_USER: ${{ secrets.EXAMPLE_USER }}
           # EXAMPLE_PASS: ${{ secrets.EXAMPLE_PASS }}
         run: |
-          python src/main.py
+          python src/main.py  # main.pyを実行
 
       - name: Send Slack notification
         run: |
