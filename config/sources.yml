@@ -1,0 +1,33 @@
+sources:
+  - id: thebridge
+    type: rss
+    name: The Bridge
+    feed_url: https://thebridge.jp/feed
+    max_items: 20
+
+  - id: techblitz
+    type: rss
+    name: Techblitz
+    feed_url: https://techblitz.com/feed/
+    max_items: 20
+
+  - id: prtimes
+    type: rss
+    name: PR Times
+    feed_url: https://prtimes.jp/rss.xml
+    max_items: 30
+
+# ログインが必要なサイト例（後で有効化）
+#  - id: example_login_site
+#    type: playwright
+#    name: Example Login Site
+#    login_url: https://example.com/login
+#    start_url: https://example.com/news
+#    username_secret: EXAMPLE_USER
+#    password_secret: EXAMPLE_PASS
+#    selectors:
+#      username: 'input[name="email"]'
+#      password: 'input[name="password"]'
+#      submit: 'button[type="submit"]'
+#      article_links: 'a.article-card'
+#    max_items: 20
