@@ -22,6 +22,11 @@ jobs:
         run: |
           pip install -r requirements.txt
           python -m playwright install --with-deps chromium
+
+      - name: Verify lxml clean
+        run: |
+          pip show lxml-html-clean
+          python -c "import lxml.html.clean; print('OK: lxml.html.clean import')"
           
       - name: Show installed packages (check)
         run: |
