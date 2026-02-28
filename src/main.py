@@ -40,7 +40,7 @@ def main():
     for url in article_urls:
         try:
             article_text = fetch_article_text(url)
-            message = f"New article fetched: {url}\n\n{article_text}"
+            message = f"New article fetched: {url}\nTitle: {doc.title()}\n\n{article_text}"
             send_slack_message(message)
             print(f"Successfully sent to Slack: {url}")
             time.sleep(5)  # Slack APIに対するリクエスト間隔
