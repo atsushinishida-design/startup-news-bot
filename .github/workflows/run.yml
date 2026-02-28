@@ -22,7 +22,13 @@ jobs:
         run: |
           pip install -r requirements.txt
           python -m playwright install --with-deps chromium
-
+          
+      - name: Show installed packages (check)
+        run: |
+          pip show lxml
+          pip show lxml-html-clean || pip show lxml_html_clean || true
+          python -c "import lxml.html.clean; print('lxml.html.clean import OK')"
+          
       - name: Run bot
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
