@@ -18,7 +18,7 @@ def fetch_article_text(url: str) -> str:
     headers = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
     }
-　　r = requests.get(url, timeout=30, headers=headers)
+    r = requests.get(url, timeout=30, headers=headers)
     r.raise_for_status()
     html = r.text
 
