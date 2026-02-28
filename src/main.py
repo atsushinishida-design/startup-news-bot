@@ -12,8 +12,6 @@ def send_slack_message(message):
     requests.post(webhook_url, json=payload)
 
 # 記事URLから本文を取得する関数
-from readability import Document  # これを確認
-
 def fetch_article_text(url: str) -> str:
     headers = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
@@ -25,11 +23,13 @@ def fetch_article_text(url: str) -> str:
     # Documentクラスを使って記事本文を抽出
     doc = Document(html)  # Documentのインスタンスを作成
     content_html = doc.summary()  # summaryメソッドで本文を抽出
+    title = doc.title()  # 記事のタイトルを取得
 
     soup = BeautifulSoup(content_html, "lxml")
     text = soup.get_text(separator="\n")
     text = "\n".join([line.strip() for line in text.splitlines() if line.strip()])
-    return text[:4000]  # Slackのメッセージ制限（4000文字）
+    
+    return title, text[:4000]  # タイトルと本文を返す
 
 # 収集する記事のURLリスト
 article_urls = [
@@ -44,8 +44,8 @@ article_urls = [
 def main():
     for url in article_urls:
         try:
-            article_text = fetch_article_text(url)
-            message = f"New article fetched: {url}\nTitle: {doc.title()}\n\n{article_text}"
+            title, article_text = fetch_article_text(url)
+            message = f"New article fetched: {url}\nTitle: {title}\n\n{article_text}"
             send_slack_message(message)
             print(f"Successfully sent to Slack: {url}")
             time.sleep(5)  # Slack APIに対するリクエスト間隔
