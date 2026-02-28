@@ -12,13 +12,17 @@ def send_slack_message(message):
     requests.post(webhook_url, json=payload)
 
 # 記事URLから本文を取得する関数
+from readability import Document  # これを確認
+
 def fetch_article_text(url: str) -> str:
-    r = requests.get(url, timeout=30, headers={"User-Agent": "Mozilla/5.0"})
+    headers = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+    }
+　　r = requests.get(url, timeout=30, headers=headers)
     r.raise_for_status()
     html = r.text
 
-    # readabilityで本文領域を推定
-    doc = Document(html)
+    doc = Document(html)  # Documentのインスタンスを確実に作成
     content_html = doc.summary()
 
     soup = BeautifulSoup(content_html, "lxml")
