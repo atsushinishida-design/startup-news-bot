@@ -28,8 +28,10 @@ def fetch_article_text(url: str) -> str:
 
 # 収集する記事のURLリスト
 article_urls = [
-    "https://example.com/article1",  # ここに実際のURLを追加
-    "https://example.com/article2",
+    "https://prtimes.jp/main/html/rd/p/000000005.000145886.html",  # ここに実際のURLを追加
+    "https://prtimes.jp/main/html/rd/p/000000028.000118467.html",
+    "https://techblitz.com/startup-interview/allganize/",
+    "https://thebridge.jp/2026/02/tashidelek-ecmile-funding-startup-factory",
     # 他のURLを追加
 ]
 
