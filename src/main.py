@@ -4,6 +4,7 @@ from readability import Document  # 必ずインポート
 import os
 import json
 import time
+from playwright.sync_api import sync_playwright  # Playwrightのインポート
 
 # Slack通知用関数
 def send_slack_message(message):
@@ -11,18 +12,22 @@ def send_slack_message(message):
     payload = {"text": message}
     requests.post(webhook_url, json=payload)
 
-# 記事URLから本文を取得する関数
-# 記事URLから本文を取得する関数
+# 記事URLから本文を取得する関数（Playwrightでページを取得）
 def fetch_article_text(url: str) -> str:
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-    }
-    r = requests.get(url, timeout=30, headers=headers)  # ヘッダーにUser-Agentを追加
-    r.raise_for_status()
-    html = r.text
+    # Playwrightを使ってブラウザでページを取得
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)  # headlessモードでブラウザ起動
+        page = browser.new_page()
+
+        # URLにアクセス
+        page.goto(url)
+
+        # ページのHTMLを取得
+        html = page.content()
+        browser.close()
 
     # Documentクラスを使って記事本文を抽出
-    doc = Document(html)
+    doc = Document(html)  # Documentのインスタンスを作成
     content_html = doc.summary()  # summaryメソッドで本文を抽出
     title = doc.title()  # 記事のタイトルを取得
 
