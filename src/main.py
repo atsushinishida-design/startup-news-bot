@@ -7,6 +7,7 @@ import time
 from playwright.sync_api import sync_playwright  # Playwrightのインポート
 import spacy
 from google import google  # Google検索API
+import feedparser  # RSSフィード用ライブラリ
 
 # spaCyの日本語モデルをロード
 nlp = spacy.load('ja_core_news_sm')
@@ -75,21 +76,39 @@ def is_startup(foundation_year):
         pass  # 年が不明な場合はFalseにする
     return False
 
-# 収集する記事のURLリスト
-article_urls = [
-    "https://prtimes.jp/main/html/rd/p/000000005.000145886.html",  # ここに実際のURLを追加
-    "https://prtimes.jp/main/html/rd/p/000000028.000118467.html",
-    "https://techblitz.com/startup-interview/allganize/",
-    "https://thebridge.jp/2026/02/tashidelek-ecmile-funding-startup-factory",
-    # 他のURLを追加
-]
+# RSSフィードから記事情報を取得
+def fetch_rss_articles(rss_url):
+    feed = feedparser.parse(rss_url)
+    articles = []
+    for entry in feed.entries:
+        article_url = entry.link
+        article_title = entry.title
+        article_summary = entry.summary
+        articles.append({"url": article_url, "title": article_title, "summary": article_summary})
+    return articles
 
 # メインの処理
 def main():
-    for url in article_urls:
+    # 収集する記事のRSSフィードリスト
+    rss_urls = [
+        "https://prtimes.jp/main/html/rd/p/0000000000000.rss",
+        "https://techblitz.com/feed/",
+        "https://kepple.co.jp/feed/",
+    ]
+    
+    # RSSフィードから記事情報を取得
+    articles = []
+    for rss_url in rss_urls:
+        articles.extend(fetch_rss_articles(rss_url))
+
+    # 各記事を処理
+    for article in articles:
+        url = article["url"]
+        title = article["title"]
+        summary = article["summary"]
         try:
-            # 記事のタイトルと本文を取得
-            title, article_text = fetch_article_text(url)
+            # 記事の本文を取得
+            article_text = fetch_article_text(url)
             
             # 会社名を抽出
             company_names = extract_company_name(article_text)
@@ -102,7 +121,7 @@ def main():
                 startup_status = is_startup(foundation_year)
 
                 # メッセージ作成
-                message = f"New article fetched: {url}\nTitle: {title}\n\n{article_text}\n"
+                message = f"New article fetched: {url}\nTitle: {title}\n\n{summary}\n"
                 message += f"Company: {company_name}\n"
                 message += f"Startup: {'Yes' if startup_status else 'No'}\n"
                 message += f"Foundation Year: {foundation_year}\n"
