@@ -48,3 +48,7 @@ jobs:
           # EXAMPLE_PASS: ${{ secrets.EXAMPLE_PASS }}
         run: |
           python src/main.py
+
+      - name: Send Slack notification
+        run: |
+          curl -X POST -H 'Content-type: application/json' --data '{"text":"Job completed successfully!"}' ${{ secrets.SLACK_WEBHOOK_URL }}
