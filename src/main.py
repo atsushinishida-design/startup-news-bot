@@ -1,141 +1,141 @@
-import requests
-from bs4 import BeautifulSoup
-from readability import Document  # 必ずインポート
 import os
-import json
 import time
-from playwright.sync_api import sync_playwright  # Playwrightのインポート
-import spacy
-from google import google  # Google検索API
-import feedparser  # RSSフィード用ライブラリ
+import yaml
+import feedparser
+import requests
+from openai import OpenAI
+from utils import make_compass_url
 
-# spaCyの日本語モデルをロード
-nlp = spacy.load('ja_core_news_sm')
+client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+SLACK_WEBHOOK_URL = os.environ["SLACK_WEBHOOK_URL"]
 
-# Slack通知用関数
-def send_slack_message(message):
-    webhook_url = os.environ["SLACK_WEBHOOK_URL"]
-    payload = {"text": message}
-    requests.post(webhook_url, json=payload)
+INDUSTRY_LIST = [
+    "通信・ネットワーキング", "コンピュータ", "半導体/その他電子部品・製品",
+    "バイオテクノロジー", "医療・ヘルスケア", "産業・エネルギー", "環境",
+    "消費者向けサービス・販売", "金融・保険・不動産", "ビジネスサービス"
+]
 
-# 記事URLから本文を取得する関数（Playwrightでページを取得）
-def fetch_article_text(url: str) -> str:
-    # Playwrightを使ってブラウザでページを取得
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)  # headlessモードでブラウザ起動
-        page = browser.new_page()
+def load_sources(path="config/sources.yml"):
+    with open(path, "r") as f:
+        return yaml.safe_load(f)["sources"]
 
-        # URLにアクセス
-        page.goto(url)
-
-        # ページのHTMLを取得
-        html = page.content()
-        browser.close()
-
-    # Documentクラスを使って記事本文を抽出
-    doc = Document(html)  # Documentのインスタンスを作成
-    content_html = doc.summary()  # summaryメソッドで本文を抽出
-    title = doc.title()  # 記事のタイトルを取得
-
-    soup = BeautifulSoup(content_html, "lxml")
-    text = soup.get_text(separator="\n")
-    text = "\n".join([line.strip() for line in text.splitlines() if line.strip()])
-    
-    return title, text[:4000]  # タイトルと本文を返す
-
-# 会社名の抽出関数
-def extract_company_name(article_text):
-    doc = nlp(article_text)
-    company_names = [ent.text for ent in doc.ents if ent.label_ == 'ORG']  # 'ORG'は組織名（会社名）を示す
-    return company_names
-
-# Google検索で会社設立年を取得する関数
-def get_company_foundation_year(company_name):
-    # Googleで検索
-    query = f"{company_name} 会社設立年"
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
-    search_url = f"https://www.google.com/search?q={query}"
-    response = requests.get(search_url, headers=headers)
-
-    # BeautifulSoupでHTMLをパース
-    soup = BeautifulSoup(response.text, 'html.parser')
-    year_info = soup.find('div', {'class': 'BNeawe iBp4i AP7Wnd'})  # Google検索結果内の設立年情報を取得
-    if year_info:
-        return year_info.get_text()
-    return "不明"
-
-# 設立年数が10年以内でスタートアップかどうかを判定
-from datetime import datetime
-def is_startup(foundation_year):
-    current_year = datetime.now().year
-    try:
-        foundation_year = int(foundation_year)
-        if current_year - foundation_year <= 10:
-            return True
-    except ValueError:
-        pass  # 年が不明な場合はFalseにする
-    return False
-
-# RSSフィードから記事情報を取得
-def fetch_rss_articles(rss_url):
-    feed = feedparser.parse(rss_url)
+def fetch_rss(feed_url, max_items=20):
+    feed = feedparser.parse(feed_url)
     articles = []
-    for entry in feed.entries:
-        article_url = entry.link
-        article_title = entry.title
-        article_summary = entry.summary
-        articles.append({"url": article_url, "title": article_title, "summary": article_summary})
+    for entry in feed.entries[:max_items]:
+        articles.append({
+            "url": getattr(entry, "link", ""),
+            "title": getattr(entry, "title", ""),
+            "summary": getattr(entry, "summary", ""),
+        })
     return articles
 
-# メインの処理
+def analyze_article(title: str, summary: str) -> dict | None:
+    """
+    GPTで以下を一括判定：
+    - 国内 or 日本人関連の海外スタートアップか
+    - 会社名
+    - 産業分類
+    - 記事要約（50字以内）
+    """
+    prompt = f"""
+以下はスタートアップ系メディアの記事タイトルと概要です。
+
+タイトル: {title}
+概要: {summary}
+
+次の情報をJSON形式で返してください（余分な説明不要）:
+{{
+  "is_startup": true/false,  // 国内スタートアップ or 日本人が関係する海外スタートアップか
+  "company_name": "会社名（不明な場合は空文字）",
+  "industry": "以下のいずれか: {', '.join(INDUSTRY_LIST)}",
+  "summary_50": "記事の要約（50字以内）"
+}}
+
+判定基準:
+- 日本の会社、または創業者・主要メンバーが日本人の海外スタートアップならis_startup=true
+- 大企業・上場企業・官公庁はis_startup=false
+- スタートアップ・ベンチャー・新興企業はtrue
+"""
+    try:
+        resp = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            response_format={"type": "json_object"},
+            temperature=0,
+        )
+        import json
+        return json.loads(resp.choices[0].message.content)
+    except Exception as e:
+        print(f"GPT error: {e}")
+        return None
+
+def send_slack(message: str):
+    requests.post(SLACK_WEBHOOK_URL, json={"text": message})
+
 def main():
-    # 収集する記事のRSSフィードリスト
-    rss_urls = [
-        "https://prtimes.jp/main/html/rd/p/0000000000000.rss",
-        "https://techblitz.com/feed/",
-        "https://kepple.co.jp/feed/",
-    ]
-    
-    # RSSフィードから記事情報を取得
-    articles = []
-    for rss_url in rss_urls:
-        articles.extend(fetch_rss_articles(rss_url))
+    sources = load_sources()
+    sent_count = 0
 
-    # 各記事を処理
-    for article in articles:
-        url = article["url"]
-        title = article["title"]
-        summary = article["summary"]
-        try:
-            # 記事の本文を取得
-            article_text = fetch_article_text(url)
-            
-            # 会社名を抽出
-            company_names = extract_company_name(article_text)
+    for source in sources:
+        print(f"Fetching: {source['name']}")
+        articles = fetch_rss(source["feed_url"], source.get("max_items", 20))
 
-            for company_name in company_names:
-                # Google検索で設立年を取得
-                foundation_year = get_company_foundation_year(company_name)
-                
-                # スタートアップ判定
-                startup_status = is_startup(foundation_year)
+        for article in articles:
+            title = article["title"]
+            summary = article["summary"][:500]  # GPTへの入力を節約
+            url = article["url"]
 
-                # メッセージ作成
-                message = f"New article fetched: {url}\nTitle: {title}\n\n{summary}\n"
-                message += f"Company: {company_name}\n"
-                message += f"Startup: {'Yes' if startup_status else 'No'}\n"
-                message += f"Foundation Year: {foundation_year}\n"
-                # 社内データベース検索URL
-                message += f"Company Database URL: http://compass/compass/index.cfm#/search/company?text={company_name}&sortKey=note&sortOrder=-1"
+            result = analyze_article(title, summary)
+            if not result or not result.get("is_startup"):
+                continue
 
-                # Slackに送信
-                send_slack_message(message)
+            company = result.get("company_name", "")
+            industry = result.get("industry", "不明")
+            summary_50 = result.get("summary_50", "")
+            compass_url = make_compass_url(company) if company else "（会社名不明）"
 
-            print(f"Successfully sent to Slack: {url}")
-            time.sleep(5)  # Slack APIに対するリクエスト間隔
-        except Exception as e:
-            print(f"Failed to fetch article from {url}: {e}")
-            send_slack_message(f"Failed to fetch article from {url}: {str(e)}")
+            message = (
+                f"*[{source['name']}] {company or '（会社名不明）'}*\n"
+                f"> {summary_50}\n"
+                f"産業分類: {industry}\n"
+                f"記事URL: {url}\n"
+                f"社内DB検索: {compass_url}"
+            )
+            send_slack(message)
+            sent_count += 1
+            time.sleep(1)
+
+    send_slack(f"✅ Startup News Bot 完了: {sent_count}件送信")
 
 if __name__ == "__main__":
     main()
+```
+
+---
+
+### 6. GitHub Secrets の設定
+
+リポジトリの **Settings → Secrets and variables → Actions** で以下を登録：
+
+| Secret名 | 内容 |
+|---|---|
+| `OPENAI_API_KEY` | OpenAI APIキー |
+| `SLACK_WEBHOOK_URL` | Slack Incoming Webhook URL |
+
+---
+
+### 設計上のポイントまとめ
+
+**spaCy・google パッケージを廃止した理由：**
+- spaCy の日本語モデルは CI 環境でのダウンロードが不安定かつ重い
+- `google` パッケージによる Google スクレイピングは利用規約違反リスクあり・精度も低い
+- **GPT-4o-mini 1回のAPIコールで「スタートアップ判定・会社名・産業分類・要約」を同時取得できる**ため、シンプルかつ高精度
+
+**Slack通知のフォーマット例：**
+```
+[Techblitz] 株式会社〇〇
+> AIを活用した物流最適化SaaSを展開するスタートアップが資金調達
+産業分類: ビジネスサービス
+記事URL: https://...
+社内DB検索: http://compass/compass/index.cfm#/search/company?text=〇〇&sortKey=note&sortOrder=-1
