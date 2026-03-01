@@ -21,7 +21,24 @@ def load_sources(path="config/sources.yml"):
         return yaml.safe_load(f)["sources"]
 
 def fetch_rss(feed_url, max_items=20):
+    # feedparserにUser-Agentを設定
+    feedparser.USER_AGENT = "Mozilla/5.0 (compatible; StartupNewsBot/1.0)"
     feed = feedparser.parse(feed_url)
+    
+    # feedparserで取得できない場合はrequestsで直接取得
+    if not feed.entries:
+        try:
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                "Accept": "application/rss+xml, application/xml, text/xml, */*",
+            }
+            resp = requests.get(feed_url, headers=headers, timeout=15)
+            resp.raise_for_status()
+            feed = feedparser.parse(resp.content)
+        except Exception as e:
+            print(f"  RSS取得エラー: {e}")
+            return []
+
     articles = []
     for entry in feed.entries[:max_items]:
         articles.append({
