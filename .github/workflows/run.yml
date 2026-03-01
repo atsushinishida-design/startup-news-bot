@@ -1,13 +1,15 @@
 name: Startup News Bot
+
 on:
   workflow_dispatch: {}
   schedule:
-    - cron: "0 1 * * *"  # 毎日 JST 10:00 (UTC 01:00)
+    - cron: "0 1 * * *"
 
 jobs:
   run:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+
     steps:
       - uses: actions/checkout@v4
 
@@ -28,23 +30,3 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: python src/main.py
-```
-
-**ポイント：**
-- `spacy` と `google` パッケージは削除（OpenAI GPT で代替）
-- Playwright のブラウザインストールを正しく実施
-- 「Job completed」の重複Slack通知ステップは削除（main.py 内で完結させる）
-
----
-
-### 2. `requirements.txt`
-```
-feedparser==6.0.11
-beautifulsoup4==4.12.3
-lxml==5.2.2
-lxml-html-clean==0.4.1
-requests==2.32.3
-playwright==1.49.1
-openai==1.61.0
-PyYAML==6.0.2
-readability-lxml==0.8.1
