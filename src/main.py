@@ -71,16 +71,26 @@ def main():
     sent_count = 0
 
     for source in sources:
-        print(f"Fetching: {source['name']}")
+        print(f"\n--- Fetching: {source['name']} ({source['feed_url']}) ---")
         articles = fetch_rss(source["feed_url"], source.get("max_items", 20))
+        print(f"取得記事数: {len(articles)}件")
+
+        if not articles:
+            print("→ 記事が取得できていません（RSSの問題の可能性）")
+            continue
 
         for article in articles:
             title = article["title"]
             summary = article["summary"][:500]
             url = article["url"]
+            print(f"\n  記事タイトル: {title}")
+            print(f"  URL: {url}")
 
             result = analyze_article(title, summary)
+            print(f"  GPT判定結果: {result}")
+
             if not result or not result.get("is_startup"):
+                print("  → スキップ（is_startup=False または GPTエラー）")
                 continue
 
             company = result.get("company_name", "")
